@@ -14,11 +14,9 @@
 # CONFIG
 #########################################
 
-AUDIO_DEVICE_ID = 2                     # change this number to use another soundcard
+AUDIO_DEVICE_ID = 1                     # change this number to use another soundcard
 SAMPLES_DIR = "."                       # The root directory containing the sample-sets. Example: "/media/" to look for samples on a USB stick / SD card
 USE_SERIALPORT_MIDI = False             # Set to True to enable MIDI IN via SerialPort (e.g. RaspberryPi's GPIO UART pins)
-USE_I2C_7SEGMENTDISPLAY = False         # Set to True to use a 7-segment display via I2C
-USE_BUTTONS = False                     # Set to True to use momentary buttons (connected to RaspberryPi's GPIO pins) to change preset
 MAX_POLYPHONY = 80                      # This can be set higher, but 80 is a safe value
 
 
@@ -274,10 +272,8 @@ def ActuallyLoad():
         dirname = os.path.join(samplesdir, basename)
     if not basename:
         print 'Preset empty: %s' % preset
-        display("E%03d" % preset)
         return
     print 'Preset loading: %s (%s)' % (preset, basename)
-    display("L%03d" % preset)
 
     definitionfname = os.path.join(dirname, "definition.txt")
     if os.path.isfile(definitionfname):
@@ -339,10 +335,8 @@ def ActuallyLoad():
                     pass
     if len(initial_keys) > 0:
         print 'Preset loaded: ' + str(preset)
-        display("%04d" % preset)
     else:
         print 'Preset empty: ' + str(preset)
-        display("E%03d" % preset)
 
 
 #########################################
@@ -357,74 +351,6 @@ try:
 except:
     print 'Invalid audio device #%i' % AUDIO_DEVICE_ID
     exit(1)
-
-
-#########################################
-# BUTTONS THREAD (RASPBERRY PI GPIO)
-#
-#########################################
-
-if USE_BUTTONS:
-    import RPi.GPIO as GPIO
-
-    lastbuttontime = 0
-
-    def Buttons():
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setup(18, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        global preset, lastbuttontime
-        while True:
-            now = time.time()
-            if not GPIO.input(18) and (now - lastbuttontime) > 0.2:
-                lastbuttontime = now
-                preset -= 1
-                if preset < 0:
-                    preset = 127
-                LoadSamples()
-
-            elif not GPIO.input(17) and (now - lastbuttontime) > 0.2:
-                lastbuttontime = now
-                preset += 1
-                if preset > 127:
-                    preset = 0
-                LoadSamples()
-
-            time.sleep(0.020)
-
-    ButtonsThread = threading.Thread(target=Buttons)
-    ButtonsThread.daemon = True
-    ButtonsThread.start()
-
-
-#########################################
-# 7-SEGMENT DISPLAY
-#
-#########################################
-
-if USE_I2C_7SEGMENTDISPLAY:
-    import smbus
-
-    bus = smbus.SMBus(1)     # using I2C
-
-    def display(s):
-        for k in '\x76\x79\x00' + s:     # position cursor at 0
-            try:
-                bus.write_byte(0x71, ord(k))
-            except:
-                try:
-                    bus.write_byte(0x71, ord(k))
-                except:
-                    pass
-            time.sleep(0.002)
-
-    display('----')
-    time.sleep(0.5)
-
-else:
-
-    def display(s):
-        pass
 
 
 #########################################
