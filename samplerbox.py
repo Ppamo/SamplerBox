@@ -14,8 +14,6 @@
 # CONFIG
 #########################################
 
-AUDIO_DEVICE_ID = 1                     # change this number to use another soundcard
-SAMPLES_DIR = "."                       # The root directory containing the sample-sets. Example: "/media/" to look for samples on a USB stick / SD card
 USE_SERIALPORT_MIDI = False             # Set to True to enable MIDI IN via SerialPort (e.g. RaspberryPi's GPIO UART pins)
 MAX_POLYPHONY = 80                      # This can be set higher, but 80 is a safe value
 
@@ -339,6 +337,7 @@ def ActuallyLoad():
 #########################################
 
 try:
+    AUDIO_DEVICE_ID=int(sys.argv[2])
     sd = sounddevice.OutputStream(device=AUDIO_DEVICE_ID, blocksize=512, samplerate=44100, channels=2, dtype='int16', callback=AudioCallback)
     sd.start()
     print 'Opened audio device #%i' % AUDIO_DEVICE_ID
