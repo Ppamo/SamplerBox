@@ -29,6 +29,7 @@ import wave
 import time
 import numpy
 import os
+import sys
 import re
 import sounddevice
 import threading
@@ -260,20 +261,13 @@ def ActuallyLoad():
     global samples
     global playingsounds
     global globalvolume, globaltranspose
+    dirname = sys.argv[1]
     playingsounds = []
     samples = {}
     globalvolume = 10 ** (-12.0/20)  # -12dB default global volume
     globaltranspose = 0
 
-    samplesdir = SAMPLES_DIR if os.listdir(SAMPLES_DIR) else '.'      # use current folder (containing 0 Saw) if no user media containing samples has been found
-
-    basename = next((f for f in os.listdir(samplesdir) if f.startswith("%d " % preset)), None)      # or next(glob.iglob("blah*"), None)
-    if basename:
-        dirname = os.path.join(samplesdir, basename)
-    if not basename:
-        print 'Preset empty: %s' % preset
-        return
-    print 'Preset loading: %s (%s)' % (preset, basename)
+    print 'Preset loading: %s' % (dirname)
 
     definitionfname = os.path.join(dirname, "definition.txt")
     if os.path.isfile(definitionfname):
@@ -334,9 +328,9 @@ def ActuallyLoad():
                 except:
                     pass
     if len(initial_keys) > 0:
-        print 'Preset loaded: ' + str(preset)
+        print 'Preset loaded: ' + dirname
     else:
-        print 'Preset empty: ' + str(preset)
+        print 'Preset empty: ' + dirname
 
 
 #########################################
