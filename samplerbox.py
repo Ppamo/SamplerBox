@@ -14,11 +14,9 @@
 # CONFIG
 #########################################
 
-AUDIO_DEVICE_ID = 2                     # change this number to use another soundcard
-SAMPLES_DIR = "."                       # The root directory containing the sample-sets. Example: "/media/" to look for samples on a USB stick / SD card
+SAMPLES_DIR = "/opt/samplerbox.bak/samples"                       # The root directory containing the sample-sets. Example: "/media/" to look for samples on a USB stick / SD card
+MIDI_DEVICE = "nanoKEY2"
 USE_SERIALPORT_MIDI = False             # Set to True to enable MIDI IN via SerialPort (e.g. RaspberryPi's GPIO UART pins)
-USE_I2C_7SEGMENTDISPLAY = False         # Set to True to use a 7-segment display via I2C
-USE_BUTTONS = False                     # Set to True to use momentary buttons (connected to RaspberryPi's GPIO pins) to change preset
 MAX_POLYPHONY = 80                      # This can be set higher, but 80 is a safe value
 
 
@@ -31,6 +29,7 @@ import wave
 import time
 import numpy
 import os
+import sys
 import re
 import sounddevice
 import threading
@@ -216,6 +215,18 @@ def MidiCallback(message, time_stamp):
                     n.fadeout(50)
             playingnotes[midinote] = []
 
+    if messagetype == 14 and midinote == 57:
+	preset -= 1
+	if preset < 0:
+	    preset = 127
+	LoadSamples()
+
+    if messagetype == 14 and midinote == 71:
+	preset += 1
+	if preset > 127:
+	    preset = 0
+	LoadSamples()
+
     elif messagetype == 12:  # Program change
         print 'Program change ' + str(note)
         preset = note
@@ -274,10 +285,10 @@ def ActuallyLoad():
         dirname = os.path.join(samplesdir, basename)
     if not basename:
         print 'Preset empty: %s' % preset
-        display("E%03d" % preset)
         return
     print 'Preset loading: %s (%s)' % (preset, basename)
-    display("L%03d" % preset)
+
+    print 'Preset loading: %s' % (dirname)
 
     definitionfname = os.path.join(dirname, "definition.txt")
     if os.path.isfile(definitionfname):
@@ -338,11 +349,9 @@ def ActuallyLoad():
                 except:
                     pass
     if len(initial_keys) > 0:
-        print 'Preset loaded: ' + str(preset)
-        display("%04d" % preset)
+        print 'Preset loaded: ' + dirname
     else:
-        print 'Preset empty: ' + str(preset)
-        display("E%03d" % preset)
+        print 'Preset empty: ' + dirname
 
 
 #########################################
@@ -351,80 +360,13 @@ def ActuallyLoad():
 #########################################
 
 try:
+    AUDIO_DEVICE_ID=int(sys.argv[1])
     sd = sounddevice.OutputStream(device=AUDIO_DEVICE_ID, blocksize=512, samplerate=44100, channels=2, dtype='int16', callback=AudioCallback)
     sd.start()
     print 'Opened audio device #%i' % AUDIO_DEVICE_ID
 except:
     print 'Invalid audio device #%i' % AUDIO_DEVICE_ID
     exit(1)
-
-
-#########################################
-# BUTTONS THREAD (RASPBERRY PI GPIO)
-#
-#########################################
-
-if USE_BUTTONS:
-    import RPi.GPIO as GPIO
-
-    lastbuttontime = 0
-
-    def Buttons():
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setup(18, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        global preset, lastbuttontime
-        while True:
-            now = time.time()
-            if not GPIO.input(18) and (now - lastbuttontime) > 0.2:
-                lastbuttontime = now
-                preset -= 1
-                if preset < 0:
-                    preset = 127
-                LoadSamples()
-
-            elif not GPIO.input(17) and (now - lastbuttontime) > 0.2:
-                lastbuttontime = now
-                preset += 1
-                if preset > 127:
-                    preset = 0
-                LoadSamples()
-
-            time.sleep(0.020)
-
-    ButtonsThread = threading.Thread(target=Buttons)
-    ButtonsThread.daemon = True
-    ButtonsThread.start()
-
-
-#########################################
-# 7-SEGMENT DISPLAY
-#
-#########################################
-
-if USE_I2C_7SEGMENTDISPLAY:
-    import smbus
-
-    bus = smbus.SMBus(1)     # using I2C
-
-    def display(s):
-        for k in '\x76\x79\x00' + s:     # position cursor at 0
-            try:
-                bus.write_byte(0x71, ord(k))
-            except:
-                try:
-                    bus.write_byte(0x71, ord(k))
-                except:
-                    pass
-            time.sleep(0.002)
-
-    display('----')
-    time.sleep(0.5)
-
-else:
-
-    def display(s):
-        pass
 
 
 #########################################
@@ -475,10 +417,10 @@ midi_in = [rtmidi.MidiIn()]
 previous = []
 while True:
     for port in midi_in[0].ports:
-        if port not in previous and 'Midi Through' not in port:
+        if port not in previous and MIDI_DEVICE in port and 'Midi Through' not in port:
             midi_in.append(rtmidi.MidiIn())
             midi_in[-1].callback = MidiCallback
             midi_in[-1].open_port(port)
             print 'Opened MIDI: ' + port
     previous = midi_in[0].ports
-    time.sleep(2)
+    time.sleep(8)
