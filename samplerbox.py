@@ -14,6 +14,8 @@
 # CONFIG
 #########################################
 
+SAMPLES_DIR = "/opt/samplerbox.bak/samples"                       # The root directory containing the sample-sets. Example: "/media/" to look for samples on a USB stick / SD card
+MIDI_DEVICE = "nanoKEY2"
 USE_SERIALPORT_MIDI = False             # Set to True to enable MIDI IN via SerialPort (e.g. RaspberryPi's GPIO UART pins)
 MAX_POLYPHONY = 80                      # This can be set higher, but 80 is a safe value
 
@@ -213,6 +215,18 @@ def MidiCallback(message, time_stamp):
                     n.fadeout(50)
             playingnotes[midinote] = []
 
+    if messagetype == 14 and midinote == 57:
+	preset -= 1
+	if preset < 0:
+	    preset = 127
+	LoadSamples()
+
+    if messagetype == 14 and midinote == 71:
+	preset += 1
+	if preset > 127:
+	    preset = 0
+	LoadSamples()
+
     elif messagetype == 12:  # Program change
         print 'Program change ' + str(note)
         preset = note
@@ -259,11 +273,20 @@ def ActuallyLoad():
     global samples
     global playingsounds
     global globalvolume, globaltranspose
-    dirname = sys.argv[1]
     playingsounds = []
     samples = {}
     globalvolume = 10 ** (-12.0/20)  # -12dB default global volume
     globaltranspose = 0
+
+    samplesdir = SAMPLES_DIR if os.listdir(SAMPLES_DIR) else '.'      # use current folder (containing 0 Saw) if no user media containing samples has been found
+
+    basename = next((f for f in os.listdir(samplesdir) if f.startswith("%d " % preset)), None)      # or next(glob.iglob("blah*"), None)
+    if basename:
+        dirname = os.path.join(samplesdir, basename)
+    if not basename:
+        print 'Preset empty: %s' % preset
+        return
+    print 'Preset loading: %s (%s)' % (preset, basename)
 
     print 'Preset loading: %s' % (dirname)
 
@@ -337,7 +360,7 @@ def ActuallyLoad():
 #########################################
 
 try:
-    AUDIO_DEVICE_ID=int(sys.argv[2])
+    AUDIO_DEVICE_ID=int(sys.argv[1])
     sd = sounddevice.OutputStream(device=AUDIO_DEVICE_ID, blocksize=512, samplerate=44100, channels=2, dtype='int16', callback=AudioCallback)
     sd.start()
     print 'Opened audio device #%i' % AUDIO_DEVICE_ID
@@ -394,10 +417,10 @@ midi_in = [rtmidi.MidiIn()]
 previous = []
 while True:
     for port in midi_in[0].ports:
-        if port not in previous and 'Midi Through' not in port:
+        if port not in previous and MIDI_DEVICE in port and 'Midi Through' not in port:
             midi_in.append(rtmidi.MidiIn())
             midi_in[-1].callback = MidiCallback
             midi_in[-1].open_port(port)
             print 'Opened MIDI: ' + port
     previous = midi_in[0].ports
-    time.sleep(2)
+    time.sleep(10)
