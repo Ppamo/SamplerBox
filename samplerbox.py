@@ -423,4 +423,4 @@ while True:
             midi_in[-1].open_port(port)
             print 'Opened MIDI: ' + port
     previous = midi_in[0].ports
-    time.sleep(10)
+    time.sleep(8)
