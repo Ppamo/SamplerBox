@@ -14,7 +14,7 @@
 # CONFIG
 #########################################
 
-SAMPLES_DIR = "/opt/samplerbox.bak/samples"                       # The root directory containing the sample-sets. Example: "/media/" to look for samples on a USB stick / SD card
+SAMPLES_DIR = "./samples"
 MIDI_DEVICE = "nanoKEY2"
 USE_SERIALPORT_MIDI = False             # Set to True to enable MIDI IN via SerialPort (e.g. RaspberryPi's GPIO UART pins)
 MAX_POLYPHONY = 80                      # This can be set higher, but 80 is a safe value
@@ -277,10 +277,12 @@ def ActuallyLoad():
     samples = {}
     globalvolume = 10 ** (-12.0/20)  # -12dB default global volume
     globaltranspose = 0
+    samplesdir = SAMPLES_DIR
 
-    samplesdir = SAMPLES_DIR if os.listdir(SAMPLES_DIR) else '.'      # use current folder (containing 0 Saw) if no user media containing samples has been found
+    if len(sys.argv) == 3:
+        samplesdir=sys.argv[2]
 
-    basename = next((f for f in os.listdir(samplesdir) if f.startswith("%d " % preset)), None)      # or next(glob.iglob("blah*"), None)
+    basename = next((f for f in os.listdir(samplesdir) if f.startswith("%02d " % preset)), None)      # or next(glob.iglob("blah*"), None)
     if basename:
         dirname = os.path.join(samplesdir, basename)
     if not basename:
