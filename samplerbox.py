@@ -37,6 +37,7 @@ from chunk import Chunk
 import struct
 import rtmidi_python as rtmidi
 import samplerbox_audio
+import signal
 
 
 #########################################
@@ -168,6 +169,31 @@ globalvolume = 10 ** (-12.0/20)  # -12dB default global volume
 globaltranspose = 0
 
 
+
+#########################################
+# COMMUNICATION WITH PARENT PROCESS
+#########################################
+# check if was loaded in 'slave' mode
+isSlave = False
+if len(sys.argv) > 3:
+    isSlave = sys.argv[3] == 'slave'
+    def signal_handler(catched_signal, frame):
+        # just ignore the signal, since it will flow to parent process
+        pass
+
+    signal.signal(signal.SIGUSR1, signal_handler)
+    signal.signal(signal.SIGUSR2, signal_handler)
+
+def MarkOnline():
+    if isSlave:
+        os.killpg(os.getppid(), signal.SIGUSR1)
+
+def MarkLoading():
+    if isSlave:
+        os.killpg(os.getppid(), signal.SIGUSR2)
+
+MarkLoading()
+
 #########################################
 # AUDIO AND MIDI CALLBACKS
 #
@@ -216,16 +242,18 @@ def MidiCallback(message, time_stamp):
             playingnotes[midinote] = []
 
     if messagetype == 14 and midinote == 57:
-	preset -= 1
-	if preset < 0:
-	    preset = 127
-	LoadSamples()
+        preset -= 1
+        if preset < 0:
+            preset = 127
+        MarkLoading()
+        LoadSamples()
 
     if messagetype == 14 and midinote == 71:
-	preset += 1
-	if preset > 127:
-	    preset = 0
-	LoadSamples()
+        preset += 1
+        if preset > 127:
+            preset = 0
+        MarkLoading()
+        LoadSamples()
 
     elif messagetype == 12:  # Program change
         print 'Program change ' + str(note)
@@ -279,7 +307,7 @@ def ActuallyLoad():
     globaltranspose = 0
     samplesdir = SAMPLES_DIR
 
-    if len(sys.argv) == 3:
+    if len(sys.argv) > 2:
         samplesdir=sys.argv[2]
 
     basename = next((f for f in os.listdir(samplesdir) if f.startswith("%02d " % preset)), None)      # or next(glob.iglob("blah*"), None)
@@ -352,6 +380,7 @@ def ActuallyLoad():
                     pass
     if len(initial_keys) > 0:
         print 'Preset loaded: ' + dirname
+        MarkOnline()
     else:
         print 'Preset empty: ' + dirname
 
@@ -412,17 +441,19 @@ LoadSamples()
 
 #########################################
 # MIDI DEVICES DETECTION
-# MAIN LOOP
 #########################################
 
 midi_in = [rtmidi.MidiIn()]
-previous = []
+for port in midi_in[0].ports:
+    if MIDI_DEVICE in port and 'Midi Through' not in port:
+        midi_in.append(rtmidi.MidiIn())
+        midi_in[-1].callback = MidiCallback
+        midi_in[-1].open_port(port)
+        print 'Opened MIDI: ' + port
+
+#########################################
+# MAIN LOOP
+#########################################
+
 while True:
-    for port in midi_in[0].ports:
-        if port not in previous and MIDI_DEVICE in port and 'Midi Through' not in port:
-            midi_in.append(rtmidi.MidiIn())
-            midi_in[-1].callback = MidiCallback
-            midi_in[-1].open_port(port)
-            print 'Opened MIDI: ' + port
-    previous = midi_in[0].ports
-    time.sleep(8)
+    time.sleep(20)
