@@ -175,6 +175,7 @@ globaltranspose = 0
 #########################################
 # check if was loaded in 'slave' mode
 isSlave = False
+PPID = os.getppid()
 if len(sys.argv) > 3:
     isSlave = sys.argv[3] == 'slave'
     def signal_handler(catched_signal, frame):
@@ -186,11 +187,13 @@ if len(sys.argv) > 3:
 
 def MarkOnline():
     if isSlave:
-        os.killpg(os.getppid(), signal.SIGUSR1)
+	print "reporting online status to %d." % PPID
+        os.kill(PPID, signal.SIGUSR1)
 
 def MarkLoading():
     if isSlave:
-        os.killpg(os.getppid(), signal.SIGUSR2)
+	print "reporting loading status to %d." % PPID
+        os.kill(PPID, signal.SIGUSR2)
 
 MarkLoading()
 
